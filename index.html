@@ -138,7 +138,7 @@
   </div>
 </header>
 
-<div id="setupBanner" class="setup-banner" style="display:none">
+<div id="setupBanner" class="setup-banner" style="display:none !important">
   <strong>⚙️ Firebase not configured yet</strong>
   Open this file in the GitHub editor and replace each PASTE_YOUR_..._HERE
   value in the firebaseConfig block with your Firebase project credentials.
@@ -215,9 +215,9 @@ const firebaseConfig = {
   messagingSenderId: "332017931388",
   appId:             "1:332017931388:web:fc2d6b4194c5cdc874e5f9"
 };
+/* ================================================================ */
 
-
-const isConfigured = !Object.values(firebaseConfig).some(v => String(v).startsWith("PASTE_"));
+const isConfigured = true;
 
 if (!isConfigured) {
   document.getElementById('setupBanner').style.display = 'block';
@@ -230,7 +230,7 @@ const db  = isConfigured ? getDatabase(app) : null;
 
 // ---- App state ----
 let data = {
-  people: ['Mom','Dad', 'Annalise', 'Tristram', 'Kids'],
+  people: ['Mom','Dad','Kids'],
   categories: {
     'Household': ['Cleaning','Kitchen','Laundry'],
     'Errands':   ['Shopping','Appointments'],
