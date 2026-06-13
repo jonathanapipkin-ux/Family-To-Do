@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Family Tasks">
+<title>Family To-Do</title>
+<style>
+  :root{
+    --ink:#2b2a28;
+    --paper:#f7f3ec;
+    --line:#d9d2c4;
+    --accent:#c1573a;
+    --accent-soft:#f0d9d1;
+    --green:#5c7a5e;
+    --amber:#caa23a;
+    --muted:#9a938a;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-tap-highlight-color: transparent;
+    padding-bottom: 90px;
+  }
+  header{
+    padding:max(18px, env(safe-area-inset-top)) 18px 14px;
+    background:var(--paper);
+    border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:5;
+  }
+  h1{
+    font-family: Georgia, "Times New Roman", serif;
+    font-size:28px;
+    margin:0 0 2px;
+    letter-spacing:0.5px;
+  }
+  .sub{font-size:13px; color:var(--muted);}
+
+  /* Filter bar */
+  .filters{
+    display:flex; gap:8px; overflow-x:auto; padding:12px 18px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .chip{
+    flex:0 0 auto;
+    padding:6px 14px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:#fff;
+    font-size:13px;
+    font-weight:600;
+    color:var(--ink);
+    white-space:nowrap;
+  }
+  .chip.active{
+    background:var(--ink); color:var(--paper); border-color:var(--ink);
+  }
+
+  main{padding:6px 18px 12px;}
+
+  .group-title{
+    font-size:12px; text-transform:uppercase; letter-spacing:1.5px;
+    color:var(--muted); margin:18px 4px 8px; font-weight:700;
+  }
+
+  .task{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:12px 14px;
+    margin-bottom:10px;
+    display:flex; gap:12px; align-items:flex-start;
+    position:relative;
+    overflow:hidden;
+  }
+  .task.urgent{ border-color:var(--accent); }
+  .task.urgent::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:5px;
+    background:var(--accent);
+  }
+  .task.done{ opacity:0.5; }
+  .task.done .task-name{ text-decoration:line-through; }
+
+  .check{
+    width:24px; height:24px; border-radius:50%;
+    border:2px solid var(--line);
+    flex:0 0 24px;
+    display:flex; align-items:center; justify-content:center;
+    margin-top:2px;
+    background:#fff;
+  }
+  .task.done .check{
+    background:var(--green); border-color:var(--green);
+  }
+  .check svg{width:14px;height:14px; opacity:0; }
+  .task.done .check svg{opacity:1;}
+
+  .task-body{flex:1; min-width:0;}
+  .task-name{font-size:15.5px; font-weight:600; line-height:1.35;}
+  .meta{
+    display:flex; flex-wrap:wrap; gap:6px; margin-top:7px;
+  }
+  .tag{
+    font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px;
+    background:var(--accent-soft); color:var(--accent);
+  }
+  .tag.who{ background:#e4e7d8; color:#5c6b3a; }
+  .tag.cat{ background:#dde6ec; color:#3a5d70; }
+  .tag.sub{ background:#f1ece2; color:#8a7c5e; }
+  .tag.due{ background:#f2f2f2; color:#777; }
+  .tag.due.overdue{ background:var(--accent-soft); color:var(--accent); }
+  .tag.due.today{ background:#fdf0d0; color:#a07b1c; }
+
+  .del{
+    border:none; background:none; color:var(--muted);
+    font-size:18px; padding:2px 4px; line-height:1; flex:0 0 auto;
+  }
+
+  .empty{
+    text-align:center; color:var(--muted); padding:40px 20px; font-size:14px;
+  }
+
+  /* FAB + form sheet */
+  .fab{
+    position:fixed; right:20px; bottom:max(20px, env(safe-area-inset-bottom));
+    width:56px; height:56px; border-radius:50%;
+    background:var(--accent); color:#fff; border:none;
+    font-size:28px; box-shadow:0 6px 18px rgba(0,0,0,0.18);
+    z-index:10;
+  }
+
+  .sheet-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.35);
+    opacity:0; pointer-events:none; transition:opacity .2s;
+    z-index:20;
+  }
+  .sheet-backdrop.show{ opacity:1; pointer-events:auto; }
+
+  .sheet{
+    position:fixed; left:0; right:0; bottom:0;
+    background:var(--paper);
+    border-radius:20px 20px 0 0;
+    padding:18px 18px max(24px, env(safe-area-inset-bottom));
+    transform:translateY(100%);
+    transition:transform .25s ease;
+    z-index:21;
+    max-height:85vh; overflow-y:auto;
+    box-shadow:0 -8px 30px rgba(0,0,0,0.2);
+  }
+  .sheet.show{ transform:translateY(0); }
+
+  .sheet h2{
+    font-family: Georgia, serif; font-size:20px; margin:4px 0 16px;
+  }
+  label{
+    display:block; font-size:12px; font-weight:700; text-transform:uppercase;
+    letter-spacing:1px; color:var(--muted); margin:14px 0 6px;
+  }
+  input[type=text], input[type=date], select, textarea{
+    width:100%; padding:11px 12px; border:1px solid var(--line);
+    border-radius:10px; font-size:15px; background:#fff; color:var(--ink);
+    font-family:inherit;
+  }
+  .row{display:flex; gap:10px;}
+  .row > *{flex:1;}
+
+  .who-grid, .urgency-grid{
+    display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;
+  }
+  .pillbtn{
+    padding:8px 14px; border-radius:999px; border:1px solid var(--line);
+    background:#fff; font-size:14px; font-weight:600; color:var(--ink);
+  }
+  .pillbtn.selected{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .pillbtn.urgent-opt.selected{ background:var(--accent); border-color:var(--accent); }
+
+  .sheet-actions{
+    display:flex; gap:10px; margin-top:22px;
+  }
+  .btn{
+    flex:1; padding:13px; border-radius:12px; border:none;
+    font-size:15px; font-weight:700;
+  }
+  .btn.primary{ background:var(--ink); color:#fff; }
+  .btn.ghost{ background:transparent; color:var(--muted); }
+
+  .manage{
+    display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;
+  }
+  .manage input{flex:1;}
+  .small-add{
+    padding:11px 14px; border-radius:10px; border:none;
+    background:var(--ink); color:#fff; font-weight:700; font-size:14px;
+  }
+  .taglist{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+  .taglist .tagchip{
+    background:#fff; border:1px solid var(--line); border-radius:999px;
+    padding:5px 10px; font-size:12.5px; display:flex; align-items:center; gap:6px;
+  }
+  .taglist .tagchip button{
+    border:none; background:none; color:var(--muted); font-size:14px; line-height:1; padding:0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Family Tasks</h1>
+  <div class="sub" id="summary">Loading…</div>
+</header>
+
+<div class="filters" id="filters"></div>
+
+<main id="list"></main>
+
+<button class="fab" id="addBtn" aria-label="Add task">+</button>
+
+<div class="sheet-backdrop" id="backdrop"></div>
+<div class="sheet" id="sheet">
+  <h2 id="sheetTitle">New task</h2>
+
+  <label>Task</label>
+  <input type="text" id="f-name" placeholder="e.g. Take out recycling">
+
+  <label>Assigned to</label>
+  <div class="who-grid" id="who-grid"></div>
+  <div class="manage">
+    <input type="text" id="new-person" placeholder="Add family member">
+    <button class="small-add" id="add-person">Add</button>
+  </div>
+
+  <div class="row">
+    <div>
+      <label>Category</label>
+      <select id="f-category"></select>
+    </div>
+    <div>
+      <label>Sub-category</label>
+      <select id="f-subcategory"></select>
+    </div>
+  </div>
+  <div class="manage">
+    <input type="text" id="new-cat" placeholder="New category">
+    <button class="small-add" id="add-cat">Add</button>
+  </div>
+  <div class="manage">
+    <input type="text" id="new-subcat" placeholder="New sub-category (for selected category)">
+    <button class="small-add" id="add-subcat">Add</button>
+  </div>
+
+  <label>Due date</label>
+  <input type="date" id="f-due">
+
+  <label>Urgency</label>
+  <div class="urgency-grid" id="urgency-grid">
+    <button type="button" class="pillbtn" data-val="low">Low</button>
+    <button type="button" class="pillbtn" data-val="normal">Normal</button>
+    <button type="button" class="pillbtn urgent-opt" data-val="urgent">Urgent</button>
+  </div>
+
+  <div class="sheet-actions">
+    <button class="btn ghost" id="cancelBtn">Cancel</button>
+    <button class="btn primary" id="saveBtn">Save task</button>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'family-todo-data-v1';
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return {
+    people: ['Mom','Dad','Kids'],
+    categories: {
+      'Household': ['Cleaning','Kitchen','Laundry'],
+      'Errands': ['Shopping','Appointments'],
+      'School': ['Homework','Projects','Permission slips']
+    },
+    tasks: [],
+    filter: 'all'
+  };
+}
+
+let data = loadData();
+let editingId = null;
+
+function save(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function uid(){ return 't' + Math.random().toString(36).slice(2,10); }
+
+function fmtDate(iso){
+  if(!iso) return null;
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+}
+
+function dueStatus(iso){
+  if(!iso) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(iso + 'T00:00:00');
+  if(d < today) return 'overdue';
+  if(d.getTime() === today.getTime()) return 'today';
+  return 'future';
+}
+
+/* ---------- Rendering ---------- */
+
+function renderFilters(){
+  const el = document.getElementById('filters');
+  const opts = [
+    {key:'all', label:'All'},
+    {key:'open', label:'Open'},
+    {key:'urgent', label:'Urgent'},
+    ...data.people.map(p => ({key:'person:'+p, label:p}))
+  ];
+  el.innerHTML = '';
+  opts.forEach(o=>{
+    const b = document.createElement('button');
+    b.className = 'chip' + (data.filter===o.key ? ' active':'');
+    b.textContent = o.label;
+    b.onclick = ()=>{ data.filter = o.key; save(); render(); };
+    el.appendChild(b);
+  });
+}
+
+function visibleTasks(){
+  let list = data.tasks.slice();
+  if(data.filter === 'open') list = list.filter(t=>!t.done);
+  else if(data.filter === 'urgent') list = list.filter(t=>t.urgency==='urgent' && !t.done);
+  else if(data.filter.startsWith('person:')) {
+    const p = data.filter.slice(7);
+    list = list.filter(t=>t.assignee===p);
+  }
+  // sort: not done first, urgent first, then by due date
+  list.sort((a,b)=>{
+    if(a.done !== b.done) return a.done ? 1 : -1;
+    const ua = a.urgency==='urgent'?0:a.urgency==='normal'?1:2;
+    const ub = b.urgency==='urgent'?0:b.urgency==='normal'?1:2;
+    if(ua!==ub) return ua-ub;
+    if(a.due && b.due) return a.due.localeCompare(b.due);
+    if(a.due) return -1;
+    if(b.due) return 1;
+    return 0;
+  });
+  return list;
+}
+
+function render(){
+  renderFilters();
+  const main = document.getElementById('list');
+  const tasks = visibleTasks();
+  const total = data.tasks.length;
+  const open = data.tasks.filter(t=>!t.done).length;
+  document.getElementById('summary').textContent =
+    total===0 ? 'No tasks yet — tap + to add one' : `${open} open of ${total} task${total===1?'':'s'}`;
+
+  if(tasks.length===0){
+    main.innerHTML = '<div class="empty">Nothing here. Tap + to add a task.</div>';
+    return;
+  }
+
+  main.innerHTML = '';
+  tasks.forEach(t=>{
+    const card = document.createElement('div');
+    card.className = 'task' + (t.urgency==='urgent' && !t.done ? ' urgent':'') + (t.done?' done':'');
+
+    const check = document.createElement('div');
+    check.className = 'check';
+    check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    check.onclick = ()=>{ t.done = !t.done; save(); render(); };
+    card.appendChild(check);
+
+    const body = document.createElement('div');
+    body.className = 'task-body';
+
+    const name = document.createElement('div');
+    name.className = 'task-name';
+    name.textContent = t.name;
+    body.appendChild(name);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+
+    if(t.assignee){
+      const tag = document.createElement('span');
+      tag.className = 'tag who';
+      tag.textContent = t.assignee;
+      meta.appendChild(tag);
+    }
+    if(t.category){
+      const tag = document.createElement('span');
+      tag.className = 'tag cat';
+      tag.textContent = t.category;
+      meta.appendChild(tag);
+    }
+    if(t.subcategory){
+      const tag = document.createElement('span');
+      tag.className = 'tag sub';
+      tag.textContent = t.subcategory;
+      meta.appendChild(tag);
+    }
+    if(t.due){
+      const status = dueStatus(t.due);
+      const tag = document.createElement('span');
+      tag.className = 'tag due' + (status==='overdue'?' overdue':status==='today'?' today':'');
+      tag.textContent = (status==='overdue'?'Overdue · ':status==='today'?'Today · ':'Due ') + fmtDate(t.due);
+      meta.appendChild(tag);
+    }
+    if(t.urgency==='urgent'){
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = '⚑ Urgent';
+      meta.appendChild(tag);
+    }
+    body.appendChild(meta);
+    card.appendChild(body);
+
+    const del = document.createElement('button');
+    del.className = 'del';
+    del.textContent = '✕';
+    del.onclick = ()=>{
+      data.tasks = data.tasks.filter(x=>x.id!==t.id);
+      save(); render();
+    };
+    card.appendChild(del);
+
+    card.querySelector('.task-body').onclick = ()=> openSheet(t);
+
+    main.appendChild(card);
+  });
+}
+
+/* ---------- Sheet / Form ---------- */
+
+const sheet = document.getElementById('sheet');
+const backdrop = document.getElementById('backdrop');
+
+function renderWhoGrid(){
+  const el = document.getElementById('who-grid');
+  el.innerHTML = '';
+  data.people.forEach(p=>{
+    const b = document.createElement('button');
+    b.type='button';
+    b.className = 'pillbtn';
+    b.dataset.val = p;
+    b.textContent = p;
+    b.onclick = ()=>{
+      el.querySelectorAll('.pillbtn').forEach(x=>x.classList.remove('selected'));
+      b.classList.add('selected');
+    };
+    el.appendChild(b);
+  });
+}
+
+function renderCategorySelect(){
+  const sel = document.getElementById('f-category');
+  sel.innerHTML = '';
+  Object.keys(data.categories).forEach(c=>{
+    const o = document.createElement('option');
+    o.value=c; o.textContent=c;
+    sel.appendChild(o);
+  });
+  renderSubcategorySelect();
+}
+
+function renderSubcategorySelect(){
+  const cat = document.getElementById('f-category').value;
+  const sel = document.getElementById('f-subcategory');
+  sel.innerHTML = '<option value="">—</option>';
+  (data.categories[cat]||[]).forEach(s=>{
+    const o = document.createElement('option');
+    o.value=s; o.textContent=s;
+    sel.appendChild(o);
+  });
+}
+document.getElementById('f-category').addEventListener('change', renderSubcategorySelect);
+
+function openSheet(task){
+  editingId = task ? task.id : null;
+  document.getElementById('sheetTitle').textContent = task ? 'Edit task' : 'New task';
+  renderWhoGrid();
+  renderCategorySelect();
+
+  document.getElementById('f-name').value = task ? task.name : '';
+  document.getElementById('f-due').value = task ? (task.due||'') : '';
+
+  // who
+  document.querySelectorAll('#who-grid .pillbtn').forEach(b=>{
+    b.classList.toggle('selected', task && b.dataset.val===task.assignee);
+  });
+
+  // category / subcategory
+  if(task && task.category){
+    document.getElementById('f-category').value = task.category;
+    renderSubcategorySelect();
+    document.getElementById('f-subcategory').value = task.subcategory||'';
+  }
+
+  // urgency
+  const urg = task ? (task.urgency||'normal') : 'normal';
+  document.querySelectorAll('#urgency-grid .pillbtn').forEach(b=>{
+    b.classList.toggle('selected', b.dataset.val===urg);
+  });
+
+  backdrop.classList.add('show');
+  sheet.classList.add('show');
+}
+
+function closeSheet(){
+  backdrop.classList.remove('show');
+  sheet.classList.remove('show');
+  editingId = null;
+}
+
+document.getElementById('addBtn').onclick = ()=> openSheet(null);
+document.getElementById('cancelBtn').onclick = closeSheet;
+backdrop.onclick = closeSheet;
+
+document.querySelectorAll('#urgency-grid .pillbtn').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('#urgency-grid .pillbtn').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+  };
+});
+
+document.getElementById('saveBtn').onclick = ()=>{
+  const name = document.getElementById('f-name').value.trim();
+  if(!name){ document.getElementById('f-name').focus(); return; }
+
+  const whoBtn = document.querySelector('#who-grid .pillbtn.selected');
+  const urgBtn = document.querySelector('#urgency-grid .pillbtn.selected');
+
+  const taskData = {
+    name,
+    assignee: whoBtn ? whoBtn.dataset.val : '',
+    category: document.getElementById('f-category').value || '',
+    subcategory: document.getElementById('f-subcategory').value || '',
+    due: document.getElementById('f-due').value || '',
+    urgency: urgBtn ? urgBtn.dataset.val : 'normal',
+  };
+
+  if(editingId){
+    const t = data.tasks.find(x=>x.id===editingId);
+    Object.assign(t, taskData);
+  } else {
+    taskData.id = uid();
+    taskData.done = false;
+    data.tasks.push(taskData);
+  }
+  save();
+  closeSheet();
+  render();
+};
+
+/* ---------- Managing people / categories ---------- */
+
+document.getElementById('add-person').onclick = ()=>{
+  const input = document.getElementById('new-person');
+  const val = input.value.trim();
+  if(!val) return;
+  if(!data.people.includes(val)) data.people.push(val);
+  input.value='';
+  save();
+  renderWhoGrid();
+};
+
+document.getElementById('add-cat').onclick = ()=>{
+  const input = document.getElementById('new-cat');
+  const val = input.value.trim();
+  if(!val) return;
+  if(!data.categories[val]) data.categories[val] = [];
+  input.value='';
+  save();
+  renderCategorySelect();
+  document.getElementById('f-category').value = val;
+  renderSubcategorySelect();
+};
+
+document.getElementById('add-subcat').onclick = ()=>{
+  const cat = document.getElementById('f-category').value;
+  const input = document.getElementById('new-subcat');
+  const val = input.value.trim();
+  if(!val || !cat) return;
+  if(!data.categories[cat].includes(val)) data.categories[cat].push(val);
+  input.value='';
+  save();
+  renderSubcategorySelect();
+  document.getElementById('f-subcategory').value = val;
+};
+
+/* ---------- Init ---------- */
+render();
+</script>
+</body>
+</html>
