@@ -126,6 +126,17 @@
     padding:11px 14px;border-radius:10px;border:none;
     background:var(--ink);color:#fff;font-weight:700;font-size:14px;
   }
+  .chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .chip-item{
+    display:flex;align-items:center;gap:5px;
+    background:#fff;border:1px solid var(--line);border-radius:999px;
+    padding:5px 8px 5px 12px;font-size:13px;font-weight:600;
+  }
+  .chip-item .x{
+    border:none;background:none;color:var(--muted);font-size:15px;
+    line-height:1;padding:0 2px;cursor:pointer;
+  }
+  .chip-item .x:hover{color:var(--accent);}
 </style>
 </head>
 <body>
@@ -161,6 +172,7 @@
     <input type="text" id="new-person" placeholder="Add family member">
     <button class="small-add" id="add-person">Add</button>
   </div>
+  <div class="chip-list" id="people-chips"></div>
 
   <div class="row">
     <div>
@@ -176,10 +188,12 @@
     <input type="text" id="new-cat" placeholder="New category">
     <button class="small-add" id="add-cat">Add</button>
   </div>
+  <div class="chip-list" id="cat-chips"></div>
   <div class="manage">
     <input type="text" id="new-subcat" placeholder="New sub-category">
     <button class="small-add" id="add-subcat">Add</button>
   </div>
+  <div class="chip-list" id="subcat-chips"></div>
 
   <label>Due date</label>
   <input type="date" id="f-due">
@@ -430,6 +444,58 @@ function renderWhoGrid(){
       b.classList.add('selected');
     };
     el.appendChild(b);
+  });
+  renderPeopleChips();
+}
+
+function renderPeopleChips(){
+  const el = document.getElementById('people-chips');
+  el.innerHTML = '';
+  data.people.forEach(p => {
+    const chip = document.createElement('div');
+    chip.className = 'chip-item';
+    chip.innerHTML = `<span>${p}</span><button class="x" title="Remove ${p}">✕</button>`;
+    chip.querySelector('.x').onclick = () => {
+      data.people = data.people.filter(x => x !== p);
+      saveConfig();
+      renderWhoGrid();
+    };
+    el.appendChild(chip);
+  });
+}
+
+function renderCatChips(){
+  const el = document.getElementById('cat-chips');
+  el.innerHTML = '';
+  Object.keys(data.categories).forEach(c => {
+    const chip = document.createElement('div');
+    chip.className = 'chip-item';
+    chip.innerHTML = `<span>${c}</span><button class="x" title="Remove ${c}">✕</button>`;
+    chip.querySelector('.x').onclick = () => {
+      delete data.categories[c];
+      saveConfig();
+      renderCategorySelect();
+      renderCatChips();
+    };
+    el.appendChild(chip);
+  });
+}
+
+function renderSubcatChips(){
+  const cat = document.getElementById('f-category').value;
+  const el  = document.getElementById('subcat-chips');
+  el.innerHTML = '';
+  (data.categories[cat] || []).forEach(s => {
+    const chip = document.createElement('div');
+    chip.className = 'chip-item';
+    chip.innerHTML = `<span>${s}</span><button class="x" title="Remove ${s}">✕</button>`;
+    chip.querySelector('.x').onclick = () => {
+      data.categories[cat] = data.categories[cat].filter(x => x !== s);
+      saveConfig();
+      renderSubcategorySelect();
+      renderSubcatChips();
+    };
+    el.appendChild(chip);
   });
 }
 
