@@ -244,7 +244,7 @@ const db  = isConfigured ? getDatabase(app) : null;
 
 // ---- App state ----
 let data = {
-  people: ['Mom','Dad','Kids'],
+  people: ['Annalise',' Tristam', 'Jonathan','Crissy'],
   categories: {
     'Household': ['Cleaning','Kitchen','Laundry'],
     'Errands':   ['Shopping','Appointments'],
@@ -329,7 +329,7 @@ function renderFilters(){
   const opts = [
     {key:'all',    label:'All'},
     {key:'open',   label:'Open'},
-    {key:'urgent', label:'Urgent'},
+    //{key:'urgent', label:'Urgent'},
     ...data.people.map(p => ({key:'person:' + p, label:p}))
   ];
   el.innerHTML = '';
