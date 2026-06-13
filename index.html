@@ -328,7 +328,7 @@ function renderFilters(){
   const el = document.getElementById('filters');
   const opts = [
     {key:'all',    label:'All'},
-    {key:'open',   label:'Open'},
+    //{key:'open',   label:'Open'},
     //{key:'urgent', label:'Urgent'},
     ...data.people.map(p => ({key:'person:' + p, label:p}))
   ];
