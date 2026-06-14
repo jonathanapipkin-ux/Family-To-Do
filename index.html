@@ -21,40 +21,61 @@
     -webkit-tap-highlight-color:transparent;padding-bottom:90px;
   }
   header{
-    padding:max(18px,env(safe-area-inset-top)) 18px 14px;
+    padding:max(18px,env(safe-area-inset-top)) 18px 10px;
     background:var(--paper);border-bottom:1px solid var(--line);
     position:sticky;top:0;z-index:5;
   }
-  h1{font-family: system-ui, sans-serif; font-size:28px;margin:0 0 2px;letter-spacing:.5px;}
+  h1{font-family:system-ui,sans-serif;font-size:28px;margin:0 0 2px;letter-spacing:.5px;}
   .sub{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;}
   .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:0 0 8px;transition:background .3s;}
   .sync-dot.live{background:var(--green);}
   .sync-dot.error{background:var(--accent);}
 
-  .setup-banner{
-    background:#fdf0d0;border:1px solid #e8c96a;border-radius:var(--radius);
-    padding:14px 16px;margin:12px 18px;font-size:13.5px;line-height:1.6;
+  /* ---- Filter rows ---- */
+  /* Two rows: people on top, categories below */
+  .filter-rows{
+    border-bottom:1px solid var(--line);
+    padding:8px 18px;
+    display:flex;flex-direction:column;gap:6px;
   }
-  .setup-banner strong{display:block;margin-bottom:4px;font-size:14px;}
-
-  .filters{display:flex;gap:8px;overflow-x:auto;padding:12px 18px;-webkit-overflow-scrolling:touch;}
+  .filter-row{
+    display:flex;gap:6px;flex-wrap:wrap;
+  }
+  /* Shared chip style — smaller than before to fit without scrolling */
   .chip{
-    flex:0 0 auto;padding:6px 14px;border-radius:999px;border:1px solid var(--line);
-    background:#fff;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;
+    padding:4px 11px;border-radius:999px;border:1px solid var(--line);
+    background:#fff;font-size:12px;font-weight:600;color:var(--ink);
+    white-space:nowrap;flex:0 0 auto;
   }
   .chip.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  /* Category chips: dim when no open tasks in that category */
+  .chip.cat-empty{color:var(--muted);border-color:var(--line);background:#fff;}
+  .chip.cat-empty.active{background:var(--muted);color:#fff;border-color:var(--muted);}
 
   main{padding:6px 18px 12px;}
 
+  /* ---- Task cards ---- */
   .task{
     background:#fff;border:1px solid var(--line);border-radius:var(--radius);
     padding:12px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;
     position:relative;overflow:hidden;
+    transition:box-shadow .15s, opacity .15s;
+    touch-action:none; /* needed for drag on iOS */
   }
   .task.urgent{border-color:var(--accent);}
   .task.urgent::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--accent);}
   .task.done{opacity:.5;}
   .task.done .task-name{text-decoration:line-through;}
+  .task.dragging{opacity:.4;box-shadow:0 8px 24px rgba(0,0,0,.18);}
+  .task.drag-over{border-color:var(--accent);border-style:dashed;}
+
+  /* Drag handle */
+  .drag-handle{
+    flex:0 0 18px;display:flex;align-items:center;justify-content:center;
+    color:var(--line);font-size:16px;cursor:grab;padding-top:3px;
+    user-select:none;-webkit-user-select:none;
+  }
+  .drag-handle:active{cursor:grabbing;}
 
   .check{
     width:24px;height:24px;border-radius:50%;border:2px solid var(--line);
@@ -84,6 +105,8 @@
     width:56px;height:56px;border-radius:50%;background:var(--accent);
     color:#fff;border:none;font-size:28px;box-shadow:0 6px 18px rgba(0,0,0,.18);z-index:10;
   }
+
+  /* ---- Sheet ---- */
   .sheet-backdrop{
     position:fixed;inset:0;background:rgba(0,0,0,.35);
     opacity:0;pointer-events:none;transition:opacity .2s;z-index:20;
@@ -149,13 +172,12 @@
   </div>
 </header>
 
-<div id="setupBanner" class="setup-banner" style="display:none !important">
-  <strong>⚙️ Firebase not configured yet</strong>
-  Open this file in the GitHub editor and replace each PASTE_YOUR_..._HERE
-  value in the firebaseConfig block with your Firebase project credentials.
+<!-- Two filter rows: people + categories -->
+<div class="filter-rows">
+  <div class="filter-row" id="filters-people"></div>
+  <div class="filter-row" id="filters-cats"></div>
 </div>
 
-<div class="filters" id="filters"></div>
 <main id="list"></main>
 <button class="fab" id="addBtn" aria-label="Add task">+</button>
 
@@ -216,10 +238,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getDatabase, ref, set, remove, onValue }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-/* ================================================================
-   PASTE YOUR FIREBASE CONFIG HERE (Step 4 of the setup guide)
-   Replace every PASTE_YOUR_..._HERE value with your own credentials.
-   ================================================================ */
 const firebaseConfig = {
   apiKey:            "AIzaSyAh27UHBL3yPqeGPSrmtTdCfTwMVq4TUzw",
   authDomain:        "family-to-do-list-ee8a5.firebaseapp.com",
@@ -229,29 +247,21 @@ const firebaseConfig = {
   messagingSenderId: "332017931388",
   appId:             "1:332017931388:web:fc2d6b4194c5cdc874e5f9"
 };
-/* ================================================================ */
 
-const isConfigured = true;
-
-if (!isConfigured) {
-  document.getElementById('setupBanner').style.display = 'block';
-  document.getElementById('summary').textContent = 'Not connected — see banner above';
-  document.getElementById('syncDot').className = 'sync-dot error';
-}
-
-const app = isConfigured ? initializeApp(firebaseConfig) : null;
-const db  = isConfigured ? getDatabase(app) : null;
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
 
 // ---- App state ----
 let data = {
-  people: ['Annalise',' Tristam', 'Jonathan','Crissy'],
+  people: ['Annalise','Tristam','Jonathan','Crissy'],
   categories: {
     'Household': ['Cleaning','Kitchen','Laundry'],
     'Errands':   ['Shopping','Appointments'],
     'School':    ['Homework','Projects','Permission slips']
   },
   tasks: [],
-  filter: 'all'
+  filter: 'all',
+  order: []   // array of task ids representing manual sort order
 };
 let editingId = null;
 
@@ -260,54 +270,53 @@ function dbRef(path){ return ref(db, path); }
 function uid(){ return 't' + Math.random().toString(36).slice(2,10); }
 
 function saveConfig(){
-  if (!db) return;
   set(dbRef('config'), {
     people:     data.people,
     categories: data.categories,
-    filter:     data.filter
+    filter:     data.filter,
+    order:      data.order
   });
 }
 
 function saveTask(task){
-  if (!db) return;
   const {id, ...rest} = task;
   set(dbRef('tasks/' + id), rest);
 }
 
 function deleteTask(id){
-  if (!db) return;
   remove(dbRef('tasks/' + id));
+  data.order = data.order.filter(x => x !== id);
+  saveConfig();
 }
 
 // ---- Real-time listeners ----
-if (db) {
-  const dot = document.getElementById('syncDot');
+const dot = document.getElementById('syncDot');
 
-  onValue(dbRef('config'), snap => {
-    const val = snap.val();
-    if (val) {
-      if (val.people)     data.people     = val.people;
-      if (val.categories) data.categories = val.categories;
-      if (val.filter)     data.filter     = val.filter;
-    }
-    render();
-  });
+onValue(dbRef('config'), snap => {
+  const val = snap.val();
+  if (val) {
+    if (val.people)     data.people     = val.people;
+    if (val.categories) data.categories = val.categories;
+    if (val.filter)     data.filter     = val.filter;
+    if (val.order)      data.order      = val.order;
+  }
+  render();
+});
 
-  onValue(dbRef('tasks'), snap => {
-    const val = snap.val();
-    data.tasks = val ? Object.entries(val).map(([id, t]) => ({...t, id})) : [];
-    dot.className = 'sync-dot live';
-    const open  = data.tasks.filter(t => !t.done).length;
-    const total = data.tasks.length;
-    document.getElementById('summary').textContent =
-      total === 0 ? 'No tasks yet — tap + to add one'
-                  : open + ' open · ' + total + ' total';
-    render();
-  }, () => {
-    dot.className = 'sync-dot error';
-    document.getElementById('summary').textContent = 'Connection error — check Firebase rules';
-  });
-}
+onValue(dbRef('tasks'), snap => {
+  const val = snap.val();
+  data.tasks = val ? Object.entries(val).map(([id, t]) => ({...t, id})) : [];
+  dot.className = 'sync-dot live';
+  const open  = data.tasks.filter(t => !t.done).length;
+  const total = data.tasks.length;
+  document.getElementById('summary').textContent =
+    total === 0 ? 'No tasks yet — tap + to add one'
+                : open + ' open · ' + total + ' total';
+  render();
+}, () => {
+  dot.className = 'sync-dot error';
+  document.getElementById('summary').textContent = 'Connection error';
+});
 
 // ---- Dates ----
 function fmtDate(iso){
@@ -323,38 +332,88 @@ function dueStatus(iso){
   return 'future';
 }
 
-// ---- Render ----
+// ---- Filters ----
+/*
+  Two filter rows are rendered:
+  Row 1 — "All" chip + one chip per person
+  Row 2 — one chip per category, dimmed (cat-empty class) if that category
+           has no open tasks under the current person filter
+*/
 function renderFilters(){
-  const el = document.getElementById('filters');
-  const opts = [
-    {key:'all',    label:'All'},
-    //{key:'open',   label:'Open'},
-    //{key:'urgent', label:'Urgent'},
+  const peoplEl = document.getElementById('filters-people');
+  const catsEl  = document.getElementById('filters-cats');
+
+  // Determine active person so category row can scope its counts
+  const activePerson = data.filter.startsWith('person:') ? data.filter.slice(7) : null;
+  const activecat    = data.filter.startsWith('cat:')    ? data.filter.slice(4) : null;
+
+  // People row
+  const peopleOpts = [
+    {key:'all', label:'All'},
     ...data.people.map(p => ({key:'person:' + p, label:p}))
   ];
-  el.innerHTML = '';
-  opts.forEach(o => {
+  peoplEl.innerHTML = '';
+  peopleOpts.forEach(o => {
     const b = document.createElement('button');
     b.className = 'chip' + (data.filter === o.key ? ' active' : '');
     b.textContent = o.label;
     b.onclick = () => { data.filter = o.key; saveConfig(); render(); };
-    el.appendChild(b);
+    peoplEl.appendChild(b);
+  });
+
+  // Category row — count open tasks per category, scoped to active person
+  catsEl.innerHTML = '';
+  Object.keys(data.categories).forEach(cat => {
+    const openInCat = data.tasks.filter(t =>
+      !t.done &&
+      t.category === cat &&
+      (!activePerson || t.assignee === activePerson)
+    ).length;
+    const b = document.createElement('button');
+    const isActiveCat = data.filter === 'cat:' + cat;
+    b.className = 'chip'
+      + (isActiveCat ? ' active' : '')
+      + (openInCat === 0 && !isActiveCat ? ' cat-empty' : '');
+    b.textContent = cat;
+    b.onclick = () => {
+      // Tapping the active category filter deselects it (back to person/all view)
+      data.filter = isActiveCat
+        ? (activePerson ? 'person:' + activePerson : 'all')
+        : 'cat:' + cat;
+      saveConfig(); render();
+    };
+    catsEl.appendChild(b);
   });
 }
 
+// ---- Task list ----
+/*
+  visibleTasks applies the active filter, then sorts:
+  1. Open before done
+  2. Within open: urgent first, then by due date
+  3. Manual order (drag-and-drop) is preserved within the same urgency tier
+     by using the order array index as a tiebreaker
+*/
 function visibleTasks(){
   let list = data.tasks.slice();
-  if (data.filter === 'open')
-    list = list.filter(t => !t.done);
-  else if (data.filter === 'urgent')
-    list = list.filter(t => t.urgency === 'urgent' && !t.done);
-  else if (data.filter.startsWith('person:'))
+
+  if (data.filter.startsWith('person:'))
     list = list.filter(t => t.assignee === data.filter.slice(7));
+  else if (data.filter.startsWith('cat:'))
+    list = list.filter(t => t.category === data.filter.slice(4));
+
   list.sort((a, b) => {
     if (a.done !== b.done) return a.done ? 1 : -1;
     const ua = a.urgency==='urgent'?0:a.urgency==='normal'?1:2;
     const ub = b.urgency==='urgent'?0:b.urgency==='normal'?1:2;
     if (ua !== ub) return ua - ub;
+    // Within same urgency, respect manual order
+    const ia = data.order.indexOf(a.id);
+    const ib = data.order.indexOf(b.id);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return  1;
+    // Fall back to due date
     if (a.due && b.due) return a.due.localeCompare(b.due);
     if (a.due) return -1;
     if (b.due) return  1;
@@ -363,6 +422,7 @@ function visibleTasks(){
   return list;
 }
 
+// ---- Render task list ----
 function render(){
   renderFilters();
   const main  = document.getElementById('list');
@@ -377,6 +437,14 @@ function render(){
     card.className = 'task'
       + (t.urgency === 'urgent' && !t.done ? ' urgent' : '')
       + (t.done ? ' done' : '');
+    card.dataset.id = t.id;
+
+    // Drag handle (⠿ braille pattern looks like a grip icon)
+    const handle = document.createElement('div');
+    handle.className = 'drag-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Drag to reorder';
+    card.appendChild(handle);
 
     const check = document.createElement('div');
     check.className = 'check';
@@ -424,6 +492,92 @@ function render(){
 
     main.appendChild(card);
   });
+
+  initDrag();
+}
+
+// ---- Drag-to-reorder ----
+/*
+  Uses the Pointer Events API which works on both iOS touch and desktop mouse.
+  When a drag ends the new order of task IDs is saved to data.order in Firebase
+  so all users see the same sequence.
+
+  How it works:
+  - pointerdown on the handle starts the drag
+  - pointermove repositions a floating clone of the card
+  - pointerup finds whichever card the clone is hovering over and inserts
+    the dragged card before or after it, then saves the new order
+*/
+function initDrag(){
+  const main = document.getElementById('list');
+  let dragging = null;   // the real card element being dragged
+  let clone    = null;   // the floating visual copy
+  let startY   = 0;
+  let offsetY  = 0;
+
+  main.querySelectorAll('.drag-handle').forEach(handle => {
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const card = handle.closest('.task');
+      dragging = card;
+      const rect = card.getBoundingClientRect();
+      startY  = e.clientY;
+      offsetY = e.clientY - rect.top;
+
+      // Create floating clone
+      clone = card.cloneNode(true);
+      clone.style.cssText = `
+        position:fixed;left:${rect.left}px;top:${rect.top}px;
+        width:${rect.width}px;z-index:100;pointer-events:none;
+        box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:.95;
+        border-radius:${getComputedStyle(card).borderRadius};
+        background:#fff;
+      `;
+      document.body.appendChild(clone);
+      card.classList.add('dragging');
+      handle.setPointerCapture(e.pointerId);
+    });
+
+    handle.addEventListener('pointermove', e => {
+      if (!dragging || !clone) return;
+      e.preventDefault();
+      clone.style.top = (e.clientY - offsetY) + 'px';
+
+      // Highlight the card we're hovering over
+      main.querySelectorAll('.task').forEach(c => c.classList.remove('drag-over'));
+      const target = cardAtY(main, e.clientY);
+      if (target && target !== dragging) target.classList.add('drag-over');
+    });
+
+    handle.addEventListener('pointerup', e => {
+      if (!dragging || !clone) return;
+      const target = cardAtY(main, e.clientY);
+      if (target && target !== dragging){
+        const cards   = [...main.querySelectorAll('.task')];
+        const fromIdx = cards.indexOf(dragging);
+        const toIdx   = cards.indexOf(target);
+        if (fromIdx < toIdx)  target.after(dragging);
+        else                  target.before(dragging);
+      }
+      // Save new order
+      const newOrder = [...main.querySelectorAll('.task')].map(c => c.dataset.id);
+      data.order = newOrder;
+      saveConfig();
+
+      clone.remove(); clone = null;
+      dragging.classList.remove('dragging');
+      main.querySelectorAll('.task').forEach(c => c.classList.remove('drag-over'));
+      dragging = null;
+    });
+  });
+}
+
+function cardAtY(container, y){
+  const cards = [...container.querySelectorAll('.task:not(.dragging)')];
+  return cards.find(c => {
+    const r = c.getBoundingClientRect();
+    return y >= r.top && y <= r.bottom;
+  }) || null;
 }
 
 // ---- Sheet ----
@@ -435,10 +589,7 @@ function renderWhoGrid(){
   el.innerHTML = '';
   data.people.forEach(p => {
     const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'pillbtn';
-    b.dataset.val = p;
-    b.textContent = p;
+    b.type = 'button'; b.className = 'pillbtn'; b.dataset.val = p; b.textContent = p;
     b.onclick = () => {
       el.querySelectorAll('.pillbtn').forEach(x => x.classList.remove('selected'));
       b.classList.add('selected');
@@ -457,8 +608,7 @@ function renderPeopleChips(){
     chip.innerHTML = `<span>${p}</span><button class="x" title="Remove ${p}">✕</button>`;
     chip.querySelector('.x').onclick = () => {
       data.people = data.people.filter(x => x !== p);
-      saveConfig();
-      renderWhoGrid();
+      saveConfig(); renderWhoGrid();
     };
     el.appendChild(chip);
   });
@@ -473,9 +623,7 @@ function renderCatChips(){
     chip.innerHTML = `<span>${c}</span><button class="x" title="Remove ${c}">✕</button>`;
     chip.querySelector('.x').onclick = () => {
       delete data.categories[c];
-      saveConfig();
-      renderCategorySelect();
-      renderCatChips();
+      saveConfig(); renderCategorySelect(); renderCatChips();
     };
     el.appendChild(chip);
   });
@@ -491,9 +639,7 @@ function renderSubcatChips(){
     chip.innerHTML = `<span>${s}</span><button class="x" title="Remove ${s}">✕</button>`;
     chip.querySelector('.x').onclick = () => {
       data.categories[cat] = data.categories[cat].filter(x => x !== s);
-      saveConfig();
-      renderSubcategorySelect();
-      renderSubcatChips();
+      saveConfig(); renderSubcategorySelect(); renderSubcatChips();
     };
     el.appendChild(chip);
   });
@@ -504,10 +650,10 @@ function renderCategorySelect(){
   sel.innerHTML = '';
   Object.keys(data.categories).forEach(c => {
     const o = document.createElement('option');
-    o.value = c; o.textContent = c;
-    sel.appendChild(o);
+    o.value = c; o.textContent = c; sel.appendChild(o);
   });
   renderSubcategorySelect();
+  renderCatChips();
 }
 
 function renderSubcategorySelect(){
@@ -516,17 +662,16 @@ function renderSubcategorySelect(){
   sel.innerHTML = '<option value="">—</option>';
   (data.categories[cat] || []).forEach(s => {
     const o = document.createElement('option');
-    o.value = s; o.textContent = s;
-    sel.appendChild(o);
+    o.value = s; o.textContent = s; sel.appendChild(o);
   });
+  renderSubcatChips();
 }
 document.getElementById('f-category').addEventListener('change', renderSubcategorySelect);
 
 function openSheet(task){
   editingId = task ? task.id : null;
   document.getElementById('sheetTitle').textContent = task ? 'Edit task' : 'New task';
-  renderWhoGrid();
-  renderCategorySelect();
+  renderWhoGrid(); renderCategorySelect();
   document.getElementById('f-name').value = task ? task.name : '';
   document.getElementById('f-due').value  = task ? (task.due || '') : '';
   document.querySelectorAll('#who-grid .pillbtn').forEach(b =>
@@ -539,14 +684,11 @@ function openSheet(task){
   const urg = task ? (task.urgency || 'normal') : 'normal';
   document.querySelectorAll('#urgency-grid .pillbtn').forEach(b =>
     b.classList.toggle('selected', b.dataset.val === urg));
-  backdrop.classList.add('show');
-  sheet.classList.add('show');
+  backdrop.classList.add('show'); sheet.classList.add('show');
 }
 
 function closeSheet(){
-  backdrop.classList.remove('show');
-  sheet.classList.remove('show');
-  editingId = null;
+  backdrop.classList.remove('show'); sheet.classList.remove('show'); editingId = null;
 }
 
 document.getElementById('addBtn').onclick    = () => openSheet(null);
@@ -583,40 +725,27 @@ document.getElementById('saveBtn').onclick = () => {
 // ---- People & Categories ----
 document.getElementById('add-person').onclick = () => {
   const input = document.getElementById('new-person');
-  const val = input.value.trim();
-  if (!val) return;
+  const val = input.value.trim(); if (!val) return;
   if (!data.people.includes(val)) data.people.push(val);
-  input.value = '';
-  saveConfig();
-  renderWhoGrid();
+  input.value = ''; saveConfig(); renderWhoGrid();
 };
 
 document.getElementById('add-cat').onclick = () => {
   const input = document.getElementById('new-cat');
-  const val = input.value.trim();
-  if (!val) return;
+  const val = input.value.trim(); if (!val) return;
   if (!data.categories[val]) data.categories[val] = [];
-  input.value = '';
-  saveConfig();
-  renderCategorySelect();
-  document.getElementById('f-category').value = val;
-  renderSubcategorySelect();
+  input.value = ''; saveConfig(); renderCategorySelect();
+  document.getElementById('f-category').value = val; renderSubcategorySelect();
 };
 
 document.getElementById('add-subcat').onclick = () => {
   const cat = document.getElementById('f-category').value;
   const input = document.getElementById('new-subcat');
-  const val = input.value.trim();
-  if (!val || !cat) return;
+  const val = input.value.trim(); if (!val || !cat) return;
   if (!data.categories[cat].includes(val)) data.categories[cat].push(val);
-  input.value = '';
-  saveConfig();
-  renderSubcategorySelect();
+  input.value = ''; saveConfig(); renderSubcategorySelect();
   document.getElementById('f-subcategory').value = val;
 };
-
-// ---- Init ----
-if (!db) render();
 </script>
 </body>
 </html>
